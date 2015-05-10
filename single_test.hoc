@@ -1,0 +1,86 @@
+// tpre-tpost is varied from -TPOST to +TPOST
+TPOST = 40 // time of postsynaptic spike
+NREPETITIONS = 60 //Number of repetitions
+ITERREPETINTERVAL = 100//0 //interval between stimulus
+SPIKEAPMLITUDE = 30
+
+load_file("nrngui.hoc")
+
+///// model cell /////
+create soma
+access soma
+L = 10
+diam = 100/L/PI
+insert pas
+
+// postsynaptic depol:  to 30 mv x 0.1 ms at TPOST
+objref sec
+
+sec = new SEClamp(0.5)
+sec.rs = 1e-3
+sec.dur1 = 1e9
+sec.amp1 = -65
+sec.dur2 = 0.1
+sec.amp2 = 30 // mV peak depol
+sec.dur3 = 1e9
+sec.amp3 = -65
+
+
+
+objref syn, netcon1, netcon2, netstim1, netstim2
+//Synapse
+syn = new exp2synGBstdp(0.5)
+
+//Two inputs
+//One is deterministic for STDP
+netstim1 = new NetStim(0.5)
+netstim1.interval = 10
+netstim1.number = 1
+netstim1.start = 10
+netstim1.noise = 0
+//Another one is stochastic, just to test
+netstim2 = new NetStim(0.5)
+netstim2.interval = 50
+netstim2.number = 0//100
+netstim2.start = 0
+netstim2.noise = 1
+
+//Connections
+netcon1 = new NetCon(netstim1,syn)
+netcon1.weight = 1e-3
+netcon1.delay = 0
+
+netcon2 = new NetCon(netstim2,syn)
+netcon2.weight = 1e-4
+netcon2.delay = 0
+
+/*
+objref cvode
+cvode = new CVode()
+cvode.active(1)
+*/
+
+objref tpostvec,vpostvec
+tpostvec = new Vector(NREPETITIONS*2)
+vpostvec = new Vector(NREPETITIONS*2)
+
+proc runtest(){ local Delta, tmax
+	Delta = $1
+	tmax = 0
+	for i=0,NREPETITIONS-1 {
+		tpostvec.x[i*2]   = TPOST + i*ITERREPETINTERVAL
+		tpostvec.x[i*2+1] = TPOST + i*ITERREPETINTERVAL+0.1
+		tmax = TPOST + i*ITERREPETINTERVAL+0.1
+		vpostvec.x[i*2]   =  SPIKEAPMLITUDE
+		vpostvec.x[i*2+1] = -65
+	}
+	vpostvec.play(&sec.amp1,tpostvec)
+	netstim1.interval = ITERREPETINTERVAL
+	netstim1.start = TPOST + Delta
+	netstim1.number = NREPETITIONS
+	//tstop = tmax + TPOST + abs(Delta)
+	tstop = 2*tmax
+	run()
+}
+load_file("init.ses")
+runtest(0)
