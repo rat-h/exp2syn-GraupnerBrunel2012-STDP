@@ -124,9 +124,10 @@ func runtest(){ local Delta, tmax
 	return netcon1.weight[1]*2.
 }
 
-//Uncomment this if you like to see 
-
+//Uncomment this if you want to see traces
+/*
 load_file("init.ses")
+*/
 
 objref st, dp
 st = new Vector()
