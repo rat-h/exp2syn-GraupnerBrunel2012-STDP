@@ -73,7 +73,7 @@ netstim1.noise = 0
 netcon1 = new NetCon(netstim1,syn)
 netcon1.weight[0] = 1e-3	// synaptic conductance
 netcon1.weight[1] = 0.5		// rho - synaptic efficacy
-netcon1.weight[1] = 0.0		// calcium concentration
+netcon1.weight[2] = 0.0		// calcium concentration
 netcon1.delay = 0
 
 /*
