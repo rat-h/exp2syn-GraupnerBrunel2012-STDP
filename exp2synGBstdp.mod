@@ -2,7 +2,7 @@ COMMENT
 NEURON module of Graupner&Brunel_PNAS_2012 STDP learning rule, implemented
 for double exponential synapse.
 
-Midnight project of
+Midnight project 
 Ruben A. Tikidji-Hamburyan <rth@nisms.krinc.ru>
 ENDCOMMENT
 
@@ -15,7 +15,7 @@ NEURON {
 	: Ca
 	RANGE tauca, cpre, cpost, cdelay
 	: STDP FLAGs
-	RANGE bistable, plastic
+	RANGE bistable, plastic, learningdependence
 	NONSPECIFIC_CURRENT i
 }
 
@@ -37,24 +37,26 @@ PARAMETER {
 	thetap = 1.3 <1e-9,1e9>				: threshold of potentiation
 	taurho = 150e3 (ms) <25e3,2500e3>	: time constant of STDP 
 	rho12    = 0.5						: middle point of cubic polynomial term
-	rhoinit  = 1						: initial condition for STDP
 	: Ca dynamic parameters
 	tauca  = 20 (ms) <1,100>			: calcium time constant 
 	cpre   = 1 <0.1,20>					: calcium influx evoked by presynaptic spike
 	cpost  = 2 <0.1,50>					: calcium influx evoked by postsynaptic spike
 	cdelay = 13.7 (ms) <0,50>			: delay of presynapticall evoked calcium influx 
 	: STDP FLAGs
-	bistable = 1 <0,1>					: FLAG, if 0 - STDP is not bistable, if 1 - STDP has bistability.
+	bistable = 1 <0,1>					: FLAG if 0 - STDP is not bistable, if 1 - STDP has bistability.
 	plastic = 1 <0,1>					: FLAG if 1 - synapse is plastic, i.e. STDP is active.
+	learningdependence = 0 <0,1>        : FLAG if 1 - presynaptic calcium influx will depends on rho.
+                                        : The reasons is simple: learning modulates current through NMDA and AMPA
+                                        : and change calcium influx proportionally. In this case cpre is maximal 
+                                        : possible calcium influx for this synapse. If 0 works as in the paper
 }
 
 ASSIGNED {
 	v (mV)
 	i (nA)
 	g (nS)
-	factor
-	lud (ms) : last update variable keep track of time intervals between
-			 : STDP updates.
+	factor (1)
+	lndt (ms)
 }
 
 STATE {
@@ -73,13 +75,18 @@ INITIAL {
 	factor = -exp(-tp/tau1) + exp(-tp/tau2)
 	factor = 1/factor
 	net_send(0, 1)
+	lndt = t
 }
 
 BREAKPOINT {
 	SOLVE state METHOD cnexp
-	g = B -A
+	g = B-A
 	i = g*(v - e)
-	STDPupdate( dt )
+}
+
+
+BEFORE STEP {
+	STDPupdate( )
 }
 
 DERIVATIVE state {
@@ -88,66 +95,80 @@ DERIVATIVE state {
 }
 
 
+FUNCTION heav( x (1) ) {
+	if ( x >= 0) {
+		heav = 1
+	} else {
+		heav = 0
+	}
+}
 
-: to catch the list of NetCon(s) to update variables dynamically
+: catch the list of NetCon(s) to update variables dynamically
 VERBATIM
 	int nc_cnt, nc_number = 0;
 	double* nc_vector, **nc_vectorhandler = NULL;
-	double t_lock=-1e9;
 ENDVERBATIM
 
 
-PROCEDURE STDPupdate( time_step_dt (ms) ){ : calculated dynamical variables in netcon(s)
+PROCEDURE STDPupdate( ){ : calculated dynamical variables in netcon's vectors
 	VERBATIM
-	if ( nc_vectorhandler != NULL && nc_number > 0 && fabs(t_lock-t)>1e-6) {
-		//DB>>
-		fprintf(stderr,"nc_vectorhandler is not zero. Number of netcon(s) is %d,time step is %g, time %g\n",nc_number,_ltime_step_dt,t);
-		//<<DB
-		for(nc_cnt=0, nc_vector = nc_vectorhandler[0]; nc_cnt < nc_number; nc_vector = nc_vectorhandler[++nc_cnt]){
-			double rho = nc_vector[1], conc = nc_vector[2];
-			nc_vector[1] += (
-				-bistable*rho*(1.-rho)*(rho12-rho)			//STDP bistability
-				+gammap*(1.-rho)*(float)((conc-thetap)>=0)	//Potentiation
-				-gammad*rho*(float)((conc-thetad)>=0)		//Depression
-			)*_ltime_step_dt/taurho;
-			nc_vector[2]  = conc * exp(-_ltime_step_dt/tauca);
-		}
-		t_lock = t;
+	if ( nc_vectorhandler == NULL || nc_number <= 0 || (t-lndt) < 1e-9) return 0;
+	double timestep = t-lndt;
+	lndt = t;
+	// Loop over all netcons connected to this synapse.
+	for(nc_cnt=0, nc_vector = nc_vectorhandler[0]; nc_cnt < nc_number; nc_vector = nc_vectorhandler[++nc_cnt]){
+		// Two variables: synaptic efficacy and calcium concentration
+		double rhoX = nc_vector[1], cX = nc_vector[2];
+		// Euler method for synaptic efficacy
+		nc_vector[1] += (
+			-bistable*rhoX*(1.-rhoX)*(rho12-rhoX)	//STDP bistability
+			+gammap*(1.-rhoX)*heav(cX-thetap)		//Potentiation
+			-gammad*rhoX*heav(cX-thetad)			//Depression
+		)*timestep/taurho;
+		// Exponential Euler for calcium concentration
+		nc_vector[2] *= exp(-timestep/tauca);
 	}
 	ENDVERBATIM
-
 }
 
+
+:====== Netcon vector consists 3 variables ======: 
 : w    intrinsic synaptic weight
 : rho  plasticity factor (see original paper)
 : c    calcium concentration
-NET_RECEIVE(w (uS), rho, c) {
-	INITIAL { rho = rhoinit  c = 0 }
+:====== ================================== ======: 
+NET_RECEIVE(w (uS), rho, c ) {
+	: YOU SHOULD SET UP ALL VECTOR VARIABLE IN HOC FILE!!!!!!
+	INITIAL {  }
 VERBATIM
+	//hack to get vectors of all netcons connected to this synapse
 		if ( nc_vectorhandler == NULL || nc_number <= 0 ){
 			nc_number = _nrn_netcon_args(_ppvar[_fnc_index]._pvoid, &nc_vectorhandler);
-			//DB>>
-			fprintf(stderr,"Set up nc_number in %d\n",nc_number);
-			//<<DB
 		}
 ENDVERBATIM
-	if (flag == 0) { : presynaptic spike (after last post so depress)
+	if (flag == 0) {        : presynaptic spike 
 		net_send(cdelay, 3) : wait delay period
 		if (plastic) {
 			A = A + factor*w*rho
 			B = B + factor*w*rho
-		} else { : plasticity is turned off
+		} else {            : plasticity is turned off
 			A = A + factor*w
 			B = B + factor*w
 		} 
-	}else if (flag == 2) { : postsynaptic spike (after last pre so potentiate)
-		FOR_NETCONS(w1, rho1, c1) {
-			c1 = c1 + cpost
+	}else if (flag == 2) {  : postsynaptic spike
+		STDPupdate()        : update plasticity
+		FOR_NETCONS(wX, rhoX, cX) {
+			cX = cX + cpost : update all calcium concentration
 		}
-	}else if (flag == 3) { : delay after presynaptic spike
-		c = c + cpre
-	} else { : flag == 1 from INITIAL block
-		WATCH (v > -20) 2
+	}else if (flag == 3) {  : delay after presynaptic spike
+		STDPupdate()        : update plasticity
+		if ( learningdependence) {
+			c = c + cpre*rho: update only local calcium concentration
+		} else {
+			c = c + cpre	: update only local calcium concentration
+		}
+	} else {                : flag == 1 from INITIAL block
+		WATCH (v > -20) 2   : setup post-synaptic watcher...
 	}
 }
 

@@ -1,9 +1,9 @@
 // tpre-tpost is varied from -TPOST to +TPOST
-TPOST = 40 // time of postsynaptic spike
+TPOST = 101 // time of postsynaptic spike
 NREPETITIONS = 60 //Number of repetitions
-ITERREPETINTERVAL = 100//0 //interval between stimulus
+ITERREPETINTERVAL = 1000 //interval between stimulus
 SPIKEAPMLITUDE = 30
-
+STDPSTEPSIZE = 10
 load_file("nrngui.hoc")
 
 ///// model cell /////
@@ -30,57 +30,121 @@ sec.amp3 = -65
 objref syn, netcon1, netcon2, netstim1, netstim2
 //Synapse
 syn = new exp2synGBstdp(0.5)
+/*
+//=====   Use default parameters to reproduce classical STDP curveon Fig.2 top left    ====//
+*/
 
-//Two inputs
-//One is deterministic for STDP
+/*
+//==== DPD-curve. See Table S1 of supplementary materials to Graupner&Brunel_PNAS_2012 ====//
+//====                    Set smaller stdp step to see original curve                  ====//
+syn.cpre  = 0.9
+syn.cpost = 0.9
+syn.gammad= 250
+syn.gammap= 550
+syn.cdelay= 4.6
+STDPSTEPSIZE = 2
+*/
+
+/*
+//==== DPD'-curve. See Table S1 of supplementary materials to Graupner&Brunel_PNAS_2012 ====//
+//====                    Set smaller stdp step to see original curve                  ====//
+syn.thetap= 2.5
+syn.gammad= 50
+syn.gammap= 600
+syn.cdelay= 2.2
+//STDPSTEPSIZE = 2
+*/
+
+
+//==== Some extra functionality just for fun ====//
+//syn.learningdependence = 1
+//syn.cpre = 2
+
+
+
+//Presynaptic input for STDP
 netstim1 = new NetStim(0.5)
 netstim1.interval = 10
 netstim1.number = 1
 netstim1.start = 10
 netstim1.noise = 0
-//Another one is stochastic, just to test
-netstim2 = new NetStim(0.5)
-netstim2.interval = 50
-netstim2.number = 0//100
-netstim2.start = 0
-netstim2.noise = 1
 
 //Connections
 netcon1 = new NetCon(netstim1,syn)
-netcon1.weight = 1e-3
+netcon1.weight[0] = 1e-3	// synaptic conductance
+netcon1.weight[1] = 0.5		// rho - synaptic efficacy
+netcon1.weight[1] = 0.0		// calcium concentration
 netcon1.delay = 0
 
-netcon2 = new NetCon(netstim2,syn)
-netcon2.weight = 1e-4
-netcon2.delay = 0
-
 /*
+// If variable step is active very strange lines appears on graphs.....
 objref cvode
 cvode = new CVode()
 cvode.active(1)
 */
 
 objref tpostvec,vpostvec
-tpostvec = new Vector(NREPETITIONS*2)
-vpostvec = new Vector(NREPETITIONS*2)
+tpostvec = new Vector(NREPETITIONS*2+1)
+vpostvec = new Vector(NREPETITIONS*2+1)
 
-proc runtest(){ local Delta, tmax
+func runtest(){ local Delta, tmax
 	Delta = $1
 	tmax = 0
-	for i=0,NREPETITIONS-1 {
-		tpostvec.x[i*2]   = TPOST + i*ITERREPETINTERVAL
-		tpostvec.x[i*2+1] = TPOST + i*ITERREPETINTERVAL+0.1
-		tmax = TPOST + i*ITERREPETINTERVAL+0.1
-		vpostvec.x[i*2]   =  SPIKEAPMLITUDE
-		vpostvec.x[i*2+1] = -65
+	for k=0,NREPETITIONS-1 {
+		tpostvec.x[k*2]   = TPOST + k*ITERREPETINTERVAL
+		tpostvec.x[k*2+1] = TPOST + k*ITERREPETINTERVAL+0.25
+		tmax = TPOST + k*ITERREPETINTERVAL+0.25
+		vpostvec.x[k*2]   =  SPIKEAPMLITUDE
+		vpostvec.x[k*2+1] = -65
 	}
+	tstop = tmax + TPOST + abs(Delta)*3
+	//tstop = 2*tmax
+	tpostvec.x[NREPETITIONS*2] = tstop
+	vpostvec.x[NREPETITIONS*2] = -65
+
 	vpostvec.play(&sec.amp1,tpostvec)
 	netstim1.interval = ITERREPETINTERVAL
-	netstim1.start = TPOST + Delta
+
+	netstim1.start = TPOST - Delta
 	netstim1.number = NREPETITIONS
-	//tstop = tmax + TPOST + abs(Delta)
-	tstop = 2*tmax
+	//reinit connection
+	netcon1.weight[0] = 1e-3
+	netcon1.weight[1] = 0.5
+	netcon1.weight[2] = 0.0
+	
+	//to make a simulation faster
+	dt=0.25
+	steps_per_ms = 4
+	stdinit()
+	
 	run()
+	//DB>>
+	print "DELAT T=",Delta," STDP=",netcon1.weight[1]*2.
+	//<<DB
+	return netcon1.weight[1]*2.
 }
+
+//Uncomment this if you like to see 
+
 load_file("init.ses")
-runtest(0)
+
+objref st, dp
+st = new Vector()
+st.indgen(-100,100,STDPSTEPSIZE)
+dp = new Vector( st.size() )
+
+
+//to draw STDP curve
+objref g
+g = new Graph()
+g.size(-100,100,0.4,1.6)
+g.beginline()
+for m=0, st.size()-1 {
+	dd = runtest(st.x[m])
+	dp.x[m] = dd
+	g.line(st.x[m],dd)
+	g.flush()
+}
+
+
+
