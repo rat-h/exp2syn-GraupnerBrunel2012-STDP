@@ -30,36 +30,6 @@ sec.amp3 = -65
 objref syn, netcon1, netcon2, netstim1, netstim2
 //Synapse
 syn = new exp2synGBstdp(0.5)
-/*
-//=====   Use default parameters to reproduce classical STDP curveon Fig.2 top left    ====//
-*/
-
-/*
-//==== DPD-curve. See Table S1 of supplementary materials to Graupner&Brunel_PNAS_2012 ====//
-//====                    Set smaller stdp step to see original curve                  ====//
-syn.cpre  = 0.9
-syn.cpost = 0.9
-syn.gammad= 250
-syn.gammap= 550
-syn.cdelay= 4.6
-STDPSTEPSIZE = 2
-*/
-
-/*
-//==== DPD'-curve. See Table S1 of supplementary materials to Graupner&Brunel_PNAS_2012 ====//
-//====                    Set smaller stdp step to see original curve                  ====//
-syn.thetap= 2.5
-syn.gammad= 50
-syn.gammap= 600
-syn.cdelay= 2.2
-//STDPSTEPSIZE = 2
-*/
-
-
-//==== Some extra functionality just for fun ====//
-//syn.learningdependence = 1
-//syn.cpre = 2
-
 
 
 //Presynaptic input for STDP
@@ -77,18 +47,21 @@ netcon1.weight[2] = 0.0		// calcium concentration
 netcon1.delay = 0
 
 /*
-// If variable step is active very strange lines appears on graphs.....
+// If variable step is active very strange lines appear on graphs.....
+// but rule works perfect!
 objref cvode
 cvode = new CVode()
 cvode.active(1)
 */
 
+strdef workind
 objref tpostvec,vpostvec
 tpostvec = new Vector(NREPETITIONS*2+1)
 vpostvec = new Vector(NREPETITIONS*2+1)
 
 func runtest(){ local Delta, tmax
 	Delta = $1
+	sprint(workind,"WORKING on DT=%g",Delta)
 	tmax = 0
 	for k=0,NREPETITIONS-1 {
 		tpostvec.x[k*2]   = TPOST + k*ITERREPETINTERVAL
@@ -124,28 +97,123 @@ func runtest(){ local Delta, tmax
 	return netcon1.weight[1]*2.
 }
 
-//Uncomment this if you want to see traces
-/*
-load_file("init.ses")
-*/
-
-objref st, dp
-st = new Vector()
-st.indgen(-100,100,STDPSTEPSIZE)
-dp = new Vector( st.size() )
+//Uncomment next line if you want to see traces
+//load_file("init.ses")
 
 
 //to draw STDP curve
-objref g
+objref st, g
+st = new Vector()
 g = new Graph()
 g.size(-100,100,0.4,1.6)
-g.beginline()
-for m=0, st.size()-1 {
-	dd = runtest(st.x[m])
-	dp.x[m] = dd
-	g.line(st.x[m],dd)
-	g.flush()
+
+
+proc testrule(){
+	st.indgen(-100,100,STDPSTEPSIZE)
+	g.beginline()
+	for m=0, st.size()-1 {
+		dd = runtest(st.x[m])
+		g.line(st.x[m],dd)
+		g.flush()
+	}
+}
+
+proc testDP(){
+    syn.tau1 = 0.8
+    syn.tau2 = 2
+    syn.e = 0
+    syn.gammad = 200
+    syn.gammap = 321.808
+    syn.thetad = 1
+    syn.thetap = 1.3 
+    syn.taurho = 150e3
+    syn.rho12  = 0.5
+    syn.tauca  = 20
+    syn.cpre   = 1
+    syn.cpost  = 2
+    syn.cdelay = 13.7
+    syn.bistable = 1
+    syn.plastic = 1
+    syn.learningdependence = 0
+    syn.STDPstep = 0.25
+    STDPSTEPSIZE = 10
+	testrule()
+}
+proc testDPD(){
+    syn.tau1 = 0.8
+    syn.tau2 = 2
+    syn.e = 0
+    syn.gammad = 250
+    syn.gammap = 550
+    syn.thetad = 1
+    syn.thetap = 1.3 
+    syn.taurho = 150e3
+    syn.rho12  = 0.5
+    syn.tauca  = 20
+    syn.cpre   = 0.9
+    syn.cpost  = 0.9
+    syn.cdelay = 4.6
+    syn.bistable = 1
+    syn.plastic = 1
+    syn.learningdependence = 0
+    syn.STDPstep = 0.25
+    STDPSTEPSIZE = 2
+	testrule()
+}
+proc testDPd(){
+    syn.tau1 = 0.8
+    syn.tau2 = 2
+    syn.e = 0
+    syn.gammad = 50
+    syn.gammap = 600
+    syn.thetad = 1
+    syn.thetap = 2.5 
+    syn.taurho = 150e3
+    syn.rho12  = 0.5
+    syn.tauca  = 20
+    syn.cpre   = 1
+    syn.cpost  = 2
+    syn.cdelay = 2.2
+    syn.bistable = 1
+    syn.plastic = 1
+    syn.learningdependence = 0
+    syn.STDPstep = 0.25
+    STDPSTEPSIZE = 2
+	testrule()
 }
 
 
+//==== Some extra functionality just for fun ====//
+//syn.learningdependence = 1
+//syn.cpre = 2
+
+
+xpanel("Cell Parameters", 0)
+xvarlabel(workind)
+xlabel("=============================")
+xvalue("Synaptic tau rise","syn.tau1",  0.1,"", 0, 0 )
+xvalue("Synaptic tau fall","syn.tau2",  0.1,"", 0, 0 )
+xvalue("Synaptic Rev. Pot.","syn.e",  0.1,"", 0, 0 )
+xvalue("Gamma Depression","syn.gammad",  0.1,"", 0, 0 )
+xvalue("Gamma Potentiation","syn.gammap",  0.1,"", 0, 0 )
+xvalue("Threshold Depression","syn.thetad",  0.1,"", 0, 0 )
+xvalue("Threshold Potentiation","syn.thetap",  0.1,"", 0, 0 )
+xvalue("Plasticity Time const.","syn.taurho",  0.1,"", 0, 0 )
+xvalue("Plasticity unstable point","syn.rho12",  0.1,"", 0, 0 )
+xvalue("Calcium Time const.","syn.tauca",  0.1,"", 0, 0 )
+xvalue("Calcium presyn influx","syn.cpre",  0.1,"", 0, 0 )
+xvalue("Calcium postsyn influx","syn.cpost",  0.1,"", 0, 0 )
+xvalue("Delay of presyn influx","syn.cdelay",  0.1,"", 0, 0 )
+xvalue("BISTABILITY 1/0 ON/OFF","syn.bistable",  0.1,"", 0, 0 )
+xvalue("PLASTICITY  1/0 ON/OFF","syn.plastic",  0.1,"", 0, 0 )
+xvalue("LEARN DEP.  1/0 ON/OFF","syn.learningdependence",  0.1,"", 0, 0 )
+xvalue("STDP solv. time step","syn.STDPstep",  0.1,"", 0, 0 )
+xvalue("STDP test time step","STDPSTEPSIZE",  0.1,"", 0, 0 )
+
+xbutton("Run Test","testrule()")
+xlabel("=============================")
+xbutton("DP","testDP()")
+xbutton("DPD","testDPD()")
+xbutton("DPD\'","testDPd()")
+xpanel(0)
 
