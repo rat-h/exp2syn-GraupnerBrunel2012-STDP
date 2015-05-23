@@ -1,3 +1,13 @@
+/*==========================================
+       TEST SUIT FOR NEURON MODULE of
+       Calcium-based plasticity model, 
+       Graupner and Brunel PNAS 2012
+       
+          RTH Midnight Project by
+Ruben A. Tikidji-Hamburyan <rth@nisms.krinc.ru>
+                  May 2015
+============================================*/
+
 // tpre-tpost is varied from -TPOST to +TPOST
 TPOST = 101 // time of postsynaptic spike
 NREPETITIONS = 60 //Number of repetitions

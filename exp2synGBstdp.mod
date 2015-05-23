@@ -1,9 +1,19 @@
 COMMENT
-NEURON module of Graupner&Brunel_PNAS_2012 STDP learning rule, implemented
-for double exponential synapse.
+NEURON module of Calcium-based plasticity model.
+Graupner and Brunel PNAS 2012
+
+Uses double exponential synapse model as a basis.
+
+WARNING! It is a pre-alpha version. The module  does not produce curves 
+         from the paper. The shape of curves are similar, but amplitudes
+         are smaller than in the paper.
+         The module does not have noise component. Noise will be added 
+         later, when deterministic part will be debugged.
+         The module will be revise after author's response.
 
 RTH Midnight Project by
 Ruben A. Tikidji-Hamburyan <rth@nisms.krinc.ru>
+May 2015
 ENDCOMMENT
 
 NEURON {

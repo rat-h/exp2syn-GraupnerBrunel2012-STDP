@@ -1,9 +1,13 @@
-// tpre-tpost is varied from -TPOST to +TPOST
+/*==========================================
+This file is used to test independence of two 
+            synaptic objects
+
+          RTH Midnight Project by
+Ruben A. Tikidji-Hamburyan <rth@nisms.krinc.ru>
+                  May 2015
+============================================*/
+
 TPOST = 101 // time of postsynaptic spike
-NREPETITIONS = 60 //Number of repetitions
-ITERREPETINTERVAL = 1000 //interval between stimulus
-SPIKEAPMLITUDE = 30
-STDPSTEPSIZE = 10
 load_file("nrngui.hoc")
 
 ///// model cell /////
@@ -19,8 +23,8 @@ soma1.ena=50
 objref edrv
 edrv = new IClamp(0.5)
 edrv.del = 0
-edrv.amp = 0.025
-edrv.dur = 200
+edrv.amp = 0.024
+edrv.dur = 500
 
 
 objref syn1, netcon1, netcon2, netstim1, netstim2
