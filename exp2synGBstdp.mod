@@ -2,12 +2,13 @@ COMMENT
 NEURON module of Graupner&Brunel_PNAS_2012 STDP learning rule, implemented
 for double exponential synapse.
 
-Midnight project 
+RTH Midnight Project by
 Ruben A. Tikidji-Hamburyan <rth@nisms.krinc.ru>
 ENDCOMMENT
 
 NEURON {
 	POINT_PROCESS exp2synGBstdp
+	NONSPECIFIC_CURRENT i
 	: Synapse
 	RANGE tau1, tau2, e, g, i 
 	: STDP
@@ -16,7 +17,6 @@ NEURON {
 	RANGE tauca, cpre, cpost, cdelay
 	: STDP FLAGs
 	RANGE bistable, plastic, learningdependence
-	NONSPECIFIC_CURRENT i
 }
 
 UNITS {
@@ -105,28 +105,38 @@ FUNCTION heav( x (1) ) {
 
 : catch the list of NetCon(s) to update variables dynamically
 VERBATIM
-	int nc_cnt, nc_number = 0;
-	double* nc_vector, **nc_vectorhandler = NULL;
+int nc_cnt;
+double *nc_vector;
+//Structure to hold vectors in linked list.
+typedef struct nc_holder{
+	struct nc_holder *next;
+	int nc_number;
+	double **nc_vectorhandler;
+	} nc_holder;
+// Root and sweeper of linked list.
+nc_holder *nc_root = NULL, *nc_current = NULL;
 ENDVERBATIM
 
 
 PROCEDURE STDPupdate( ){ : calculated dynamical variables in netcon's vectors
 	VERBATIM
-	if ( nc_vectorhandler == NULL || nc_number <= 0 || (t-lndt) < 1e-9) return 0;
+	if ( nc_root == NULL || (t-lndt) < 1e-9) return 0;
 	double timestep = t-lndt;
 	lndt = t;
 	// Loop over all netcons connected to this synapse.
-	for(nc_cnt=0, nc_vector = nc_vectorhandler[0]; nc_cnt < nc_number; nc_vector = nc_vectorhandler[++nc_cnt]){
-		// Two variables: synaptic efficacy and calcium concentration
-		double rhoX = nc_vector[1], cX = nc_vector[2];
-		// Euler method for synaptic efficacy
-		nc_vector[1] += (
-			-bistable*rhoX*(1.-rhoX)*(rho12-rhoX)	//STDP bistability
-			+gammap*(1.-rhoX)*heav(cX-thetap)		//Potentiation
-			-gammad*rhoX*heav(cX-thetad)			//Depression
-		)*timestep/taurho;
-		// Exponential Euler for calcium concentration
-		nc_vector[2] *= exp(-timestep/tauca);
+	for(nc_current = nc_root; nc_current != NULL; nc_current = nc_current->next){
+		for(nc_cnt=0, nc_vector = nc_current->nc_vectorhandler[0]; nc_cnt < nc_current->nc_number; nc_vector = nc_current->nc_vectorhandler[++nc_cnt]){
+			// Two variables: synaptic efficacy and calcium concentration
+			double rhoX = nc_vector[1], cX = nc_vector[2];
+			// Euler method for synaptic efficacy
+			nc_vector[1] += (
+				-bistable*rhoX*(1.-rhoX)*(rho12-rhoX)	//STDP bistability
+				+gammap*(1.-rhoX)*heav(cX-thetap)		//Potentiation
+				-gammad*rhoX*heav(cX-thetad)			//Depression
+			)*timestep/taurho;
+			// Exponential Euler for calcium concentration
+			nc_vector[2] *= exp(-timestep/tauca);
+		}
 	}
 	ENDVERBATIM
 }
@@ -140,12 +150,6 @@ PROCEDURE STDPupdate( ){ : calculated dynamical variables in netcon's vectors
 NET_RECEIVE(w (uS), rho, c ) {
 	: YOU SHOULD SET UP ALL VECTOR VARIABLE IN HOC FILE!!!!!!
 	INITIAL {  }
-VERBATIM
-	//hack to get vectors of all netcons connected to this synapse
-		if ( nc_vectorhandler == NULL || nc_number <= 0 ){
-			nc_number = _nrn_netcon_args(_ppvar[_fnc_index]._pvoid, &nc_vectorhandler);
-		}
-ENDVERBATIM
 	if (flag == 0) {        : presynaptic spike 
 		net_send(cdelay, 3) : wait delay period
 		if (plastic) {
@@ -169,6 +173,27 @@ ENDVERBATIM
 		}
 	} else {                : flag == 1 from INITIAL block
 		WATCH (v > -20) 2   : setup post-synaptic watcher...
+VERBATIM
+	//hack to get vectors of all netcons connected to this synapse
+		double **nc_vectorhandler;
+		int nc_number = _nrn_netcon_args(_ppvar[_fnc_index]._pvoid, &nc_vectorhandler);
+		nc_current = nc_root;
+		while( nc_current != NULL ){
+			if (nc_current->nc_number == nc_number && nc_current->nc_vectorhandler == nc_vectorhandler) break;
+			nc_current = nc_current->next;
+		}
+		if (nc_current == NULL){
+			nc_current = (nc_holder*) malloc( sizeof(nc_holder) );
+			nc_current->next = nc_root;
+			nc_root = nc_current;
+			nc_current->nc_number = nc_number;
+			nc_current->nc_vectorhandler = nc_vectorhandler;
+			//DB>>
+			//printf("IDENTIFIED NETCON %09X\n",(int32_t)nc_vectorhandler);
+			//<<DB
+		}
+ENDVERBATIM
+
 	}
 }
 
