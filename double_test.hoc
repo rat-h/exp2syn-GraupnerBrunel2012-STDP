@@ -1,0 +1,127 @@
+// tpre-tpost is varied from -TPOST to +TPOST
+TPOST = 101 // time of postsynaptic spike
+NREPETITIONS = 60 //Number of repetitions
+ITERREPETINTERVAL = 1000 //interval between stimulus
+SPIKEAPMLITUDE = 30
+STDPSTEPSIZE = 10
+load_file("nrngui.hoc")
+
+///// model cell /////
+create soma1
+access soma1
+soma1.L = 20.
+soma1.diam=20/PI
+soma1.nseg=1
+soma1.cm=1
+insert hh
+soma1.ek=-77
+soma1.ena=50
+objref edrv
+edrv = new IClamp(0.5)
+edrv.del = 0
+edrv.amp = 0.025
+edrv.dur = 200
+
+
+objref syn1, netcon1, netcon2, netstim1, netstim2
+//Synapse
+syn1 = new exp2synGBstdp(0.5)
+/*
+//=====   Use default parameters to reproduce classical STDP curveon Fig.2 top left    ====//
+*/
+
+
+//Presynaptic input for STDP
+netstim1 = new NetStim(0.5)
+netstim1.interval = 10
+netstim1.number = 0
+netstim1.start = 10
+netstim1.noise = 0
+
+//Connections
+netcon1 = new NetCon(netstim1,syn1)
+netcon1.weight[0] = 1e-3	// synaptic conductance
+netcon1.weight[1] = 0.5		// rho - synaptic efficacy
+netcon1.weight[2] = 0.0		// calcium concentration
+netcon1.delay = 0
+
+netstim2 = new NetStim(0.5)
+netstim2.interval = 10
+netstim2.number = 0
+netstim2.start = 10
+netstim2.noise = 1
+
+//Presynaptic input for STDP
+netcon2 = new NetCon(netstim2,syn1)
+netcon2.weight[0] = 1e-3	// synaptic conductance
+netcon2.weight[1] = 0.5		// rho - synaptic efficacy
+netcon2.weight[2] = 0.0		// calcium concentration
+netcon2.delay = 0
+
+create soma2
+access soma2
+soma2.L = 20.
+soma2.diam=20/PI
+soma2.nseg=1
+soma2.cm=1
+insert hh
+soma2.ek=-77
+soma2.ena=50
+
+objref syn2, netcon3, netcon4, netstim3, netstim4
+syn2 = new exp2synGBstdp(0.5)
+
+
+//Presynaptic input for STDP
+netstim3 = new NetStim(0.5)
+netstim3.interval = 10
+netstim3.number = 0
+netstim3.start = 10
+netstim3.noise = 0
+
+//Connections
+netcon3 = new NetCon(netstim3,syn2)
+netcon3.weight[0] = 1e-3	// synaptic conductance
+netcon3.weight[1] = 0.5		// rho - synaptic efficacy
+netcon3.weight[2] = 0.0		// calcium concentration
+netcon3.delay = 0
+
+netstim4 = new NetStim(0.5)
+netstim4.interval = 100
+netstim4.number = 10
+netstim4.start = 10
+netstim4.noise = 1
+
+//Presynaptic input for STDP
+netcon4 = new NetCon(netstim4,syn2)
+netcon4.weight[0] = 1e-3	// synaptic conductance
+netcon4.weight[1] = 0.5		// rho - synaptic efficacy
+netcon4.weight[2] = 0.0		// calcium concentration
+netcon4.delay = 0
+
+proc init() {
+	netcon1.weight[0] = 1e-3	// synaptic conductance
+	netcon1.weight[1] = 0.5		// rho - synaptic efficacy
+	netcon1.weight[2] = 0.0		// calcium concentration
+	netcon1.delay = 0
+
+	netcon2.weight[0] = 1e-3	// synaptic conductance
+	netcon2.weight[1] = 0.5		// rho - synaptic efficacy
+	netcon2.weight[2] = 0.0		// calcium concentration
+	netcon2.delay = 0
+
+	netcon3.weight[0] = 1e-3	// synaptic conductance
+	netcon3.weight[1] = 0.5		// rho - synaptic efficacy
+	netcon3.weight[2] = 0.0		// calcium concentration
+	netcon3.delay = 0
+
+	netcon4.weight[0] = 1e-3	// synaptic conductance
+	netcon4.weight[1] = 0.5		// rho - synaptic efficacy
+	netcon4.weight[2] = 0.0		// calcium concentration
+	netcon4.delay = 0
+	finitialize()
+	fcurrent()
+	frecord_init()
+}
+
+load_file("double_test.ses")
